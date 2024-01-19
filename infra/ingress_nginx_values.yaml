@@ -1,0 +1,15 @@
+tcp:
+  22: gitea/gitea-ssh:22
+
+controller:
+  service:
+    annotations:
+      metallb.universe.tf/loadBalancerIPs: 172.29.255.200
+    ports:
+      http: 80
+      https: 443
+      ssh: 22
+    targetPorts:
+      http: http
+      https: https
+      ssh: ssh

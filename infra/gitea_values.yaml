@@ -1,0 +1,8 @@
+gitea:
+  admin:
+    username: gitea
+    password: gitea
+  config:
+    server:
+      DOMAIN: 172.29.255.200
+      ROOT_URL: http://localhost/gitea/

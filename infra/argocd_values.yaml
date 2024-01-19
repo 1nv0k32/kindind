@@ -1,0 +1,8 @@
+configs:
+  params:
+    server.insecure: true 
+    server.rootpath: '/argocd/'
+    server.basehref: '/argocd/'
+  secret:
+    # set admin password to argo
+    argocdServerAdminPassword: '$2a$10$VTdMmcEESAWg73TgZOdFIOR0B/yDV0MY0nejrRWRV4oI5ThyJJ7bO'
