@@ -33,5 +33,6 @@ Access the applications with bellow URLs:
 ## TODOs
 
 - [ ] Use Ansible instead of the bash script
+- [ ] Get rid of hardcoded Addresses
 - [ ] Automate CIDR choice
-- [ ] Connect Argo to Gitea
+- [x] Connect Argo to Gitea

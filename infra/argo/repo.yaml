@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  insecure: "true"
+  url: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/gitea/gitea/apps.git

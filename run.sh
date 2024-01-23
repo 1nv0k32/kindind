@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/bin/env bash
 
 set +e
 
@@ -19,12 +19,12 @@ cleaner() {
         case $yn in
         [Yy]* )
             ${EXEC} kind delete cluster &> /dev/null
-            docker network rm --force kind > /dev/null
+            docker network rm kind &> /dev/null || true
             docker rm --force ${CONTAINER_NAME} &> /dev/null
             break;;
         [Ee]* )
             ${EXEC} kind delete cluster &> /dev/null
-            docker network rm --force kind > /dev/null
+            docker network rm kind &> /dev/null || true
             docker rm --force ${CONTAINER_NAME} &> /dev/null
             exit 0
             break;;
@@ -40,13 +40,12 @@ cleaner
 # Run base infra with customized DinD
 echo "*** Building and Running base infrastructure ***"
 docker build --quiet --tag ${KINDIND_IMAGE_TAG} --file ./Dockerfile . > /dev/null
-docker run --detach --privileged --rm --network host --volume "/var/run/docker.sock:/var/run/docker.sock" --volume "./infra:/infra" --name ${CONTAINER_NAME} ${KINDIND_IMAGE_TAG} sleep infinity > /dev/null
+docker run --detach --privileged --rm --network host --volume "/var/run/docker.sock:/var/run/docker.sock" --volume "./infra:/infra" --volume "./apps:/apps" --name ${CONTAINER_NAME} ${KINDIND_IMAGE_TAG} sleep infinity > /dev/null
 
 sleep 5
 
 echo "*** Creating KinD cluster ***"
 ${EXEC} kind delete cluster
-docker network rm --force kind > /dev/null
 docker network create --driver bridge --subnet 172.29.0.0/16 --gateway 172.29.0.1 kind > /dev/null
 ${EXEC} kind create cluster --config /infra/kind_cluster.yaml
 ${EXEC} kubectl wait --for=condition=ready node --selector=kubernetes.io/os=linux --timeout=90s
@@ -69,6 +68,17 @@ echo "*** Installing Gitea ***"
 ${EXEC} helm upgrade --install gitea gitea --repo https://dl.gitea.com/charts --namespace gitea --create-namespace --values /infra/gitea_values.yaml > /dev/null
 ${EXEC} kubectl wait --namespace gitea --for=condition=ready pod --selector=app=gitea --timeout=90s
 ${EXEC} kubectl apply -f /infra/gitea_ingress.yaml
+
+${EXEC} kubectl apply -f /infra/argo/repo.yaml
+${EXEC} kubectl apply -f /infra/argo/apps.yaml
+${EXEC} kubectl run api-caller --restart=Never --rm --attach --image curlimages/curl -- -sk \
+    -X 'POST' 'https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/gitea/api/v1/user/repos' \
+    -H 'accept: application/json' \
+    -H 'authorization: Basic Z2l0ZWE6Z2l0ZWE=' \
+    -H 'Content-Type: application/json' \
+    -d '{"default_branch": "main", "name": "apps", "private": false}'
+
+${EXEC} bash -c 'cp -r /apps /tmp/apps && cd /tmp/apps && git config --global user.email "gitea@cluster.local" && git config --global user.name gitea && git config --global http.sslVerify false && git init -b main && git add . && git commit -m "sample app added" && git remote add origin https://172.29.255.200/gitea/gitea/apps.git && git push https://gitea:gitea@172.29.255.200/gitea/gitea/apps.git --all'
 
 ${EXEC} kubectl get --all-namespaces all,ingress
 
