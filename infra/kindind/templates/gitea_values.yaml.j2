@@ -1,0 +1,8 @@
+gitea:
+  admin:
+    username: {{ gitea_username }}
+    password: {{ gitea_password }}
+  config:
+    server:
+      DOMAIN: {{ domain }}
+      ROOT_URL: http://{{ domain }}/{{ gitea_path }}/

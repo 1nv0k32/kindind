@@ -1,20 +1,21 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: argocd-server-ingress
-  namespace: argocd
+  name: gitea-ingress
+  namespace: gitea
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
   rules:
     - http:
         paths:
-        - path: /argocd/
+        - path: /{{ gitea_path }}(/|&)(.*)
           pathType: ImplementationSpecific
           backend:
             service:
-              name: argocd-server
+              name: gitea-http
               port:
-                name: http
+                number: 3000

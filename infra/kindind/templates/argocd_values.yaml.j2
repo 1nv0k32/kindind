@@ -1,0 +1,7 @@
+configs:
+  params:
+    server.insecure: true 
+    server.rootpath: '/{{ argocd_path }}/'
+    server.basehref: '/{{ argocd_path }}/'
+  secret:
+    argocdServerAdminPassword: {{ argocd_admin_password | password_hash('blowfish', rounds=10) | replace('$2y', '$2a') }}

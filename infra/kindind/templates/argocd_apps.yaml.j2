@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: {{ namespace_argocd }}
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    path: apps
+    repoURL: http://ingress-nginx-controller.{{ namespace_ingress }}.svc.cluster.local/{{ gitea_path }}/{{ gitea_username }}/{{ gitea_apps_repo }}.git
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

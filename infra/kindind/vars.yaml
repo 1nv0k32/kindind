@@ -1,0 +1,48 @@
+arch: amd64
+os: linux
+pkgs:
+  - curl
+  - vim
+  - tar
+  - git
+  - bash-completion
+  - python3
+  - py3-requests
+  - py3-kubernetes
+  - py3-jsonpatch
+  - kubectl
+  - k9s
+  - helm
+
+installation_path: /usr/local/bin
+completion_path: /usr/share/bash-completion/completions
+temp_dir: /tmp
+
+kind_version: v0.20.0
+kind_url: "https://github.com/kubernetes-sigs/kind/releases/download/{{ kind_version }}/kind-{{ os }}-{{ arch }}"
+argocd_url: "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-{{ os }}-{{ arch }}"
+
+cluster_name: kind
+control_nodes: 1
+worker_nodes: 2
+
+ip_cidr: 172.29.255.0/24
+ip_range: 172.29.255.0/25
+ip_gateway: 172.29.255.1
+ip_metallb: 172.29.255.200-172.29.255.210
+ip_ingress: 172.29.255.200
+
+namespace_metallb: metallb-system
+namespace_ingress: ingress-nginx
+namespace_argocd: argocd
+namespace_gitea: gitea
+
+domain: localhost
+
+argocd_path: argocd
+argocd_admin_password: admin
+
+gitea_path: gitea
+gitea_username: gitea
+gitea_password: gitea
+gitea_apps_repo: apps

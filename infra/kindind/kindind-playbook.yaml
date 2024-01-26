@@ -1,0 +1,201 @@
+---
+- name: Bootstrap kindind
+  hosts: localhost
+  connection: local
+  become_user: root
+  become: yes
+  gather_facts: yes
+  vars_files:
+    vars.yaml
+
+  tasks:
+    - name: Upgrade OS packages
+      package:
+        state: present
+        update_cache: yes
+        upgrade: yes
+    - name: Install OS packages
+      package:
+        name: "{{ pkgs }}"
+        state: present
+        update_cache: yes
+      
+    - name: Install KinD
+      get_url:
+        url: "{{ kind_url }}"
+        dest: "{{ installation_path }}/kind"
+        owner: root
+        group: root
+        mode: 0755
+    - name: Install ArgoCD
+      get_url:
+        url: "{{ argocd_url }}"
+        dest: "{{ installation_path }}/argocd"
+        owner: root
+        group: root
+        mode: 0755
+    - name: Install completions
+      shell: "{{ item.cmd }} completion bash > {{ completion_path }}/{{ item.cmd }}"
+      loop:
+        - cmd: docker
+        - cmd: kind
+        - cmd: kubectl
+        - cmd: helm
+        - cmd: argocd
+        - cmd: k9s
+
+    - name: Copy configs
+      template:
+        src: "{{ item }}"
+        dest: "{{ temp_dir }}/{{ item | basename | regex_replace('\\.j2$', '') }}"
+        owner: root
+        group: root
+        mode: 0644
+      with_fileglob:
+        - "templates/*.j2"
+
+    - name: Delete KinD cluster
+      shell: "kind delete cluster --name {{ cluster_name }}"
+      ignore_errors: yes
+    - name: Docker delete kind network
+      docker_network:
+        name: kind
+        state: absent
+        force: yes
+    - name: Docker create kind network
+      docker_network:
+        name: kind
+        state: present
+        driver: bridge
+        ipam_config:
+          - subnet: "{{ ip_cidr }}"
+            iprange: "{{ ip_range }}"
+            gateway: "{{ ip_gateway }}"
+    - name: Create KinD cluster
+      shell: "kind create cluster --name {{ cluster_name }} --config {{ temp_dir }}/kind_cluster.yaml"
+    - name: Waiting for nodes to be ready
+      shell: "kubectl wait --for=condition=Ready node --all --timeout=90s"
+
+    - name: Add all helm repos
+      kubernetes.core.helm_repository:
+        name: "{{ item.name }}"
+        repo_url: "{{ item.url }}"
+        state: present
+      loop:
+        - name: metallb
+          url: https://metallb.github.io/metallb
+        - name: ingress-nginx
+          url: https://kubernetes.github.io/ingress-nginx
+        - name: argo-cd
+          url: https://argoproj.github.io/argo-helm
+        - name: gitea
+          url: https://dl.gitea.com/charts
+
+    - name: Install MetalLB
+      kubernetes.core.helm:
+        name: "{{ item.name }}"
+        chart_ref: "{{ item.chart }}"
+        release_namespace: "{{ item.namespace }}"
+        create_namespace: yes
+        wait: yes
+        wait_timeout: 300s
+        release_state: present
+      loop:
+        - name: metallb
+          chart: metallb/metallb
+          namespace: "{{ namespace_metallb }}"
+
+    - name: Apply MetalLB config
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ item }}"
+      loop:
+        - "{{ temp_dir }}/metallb_config.yaml"
+
+    - name: Sysctl localnet
+      sysctl:
+        name: net.ipv4.conf.all.route_localnet
+        value: 1
+        sysctl_set: yes
+        state: present
+        reload: yes
+    
+    - name: iptables DNAT for MetalLB
+      iptables:
+        table: nat
+        chain: PREROUTING
+        protocol: tcp
+        source: "{{ ansible_facts.default_ipv4.gateway }}"
+        destination_port: "{{ item }}"
+        jump: DNAT
+        to_destination: "{{ ip_ingress }}:{{ item }}"
+        comment: "MetalLB {{ item }}"
+      loop:
+        - 22
+        - 80
+        - 443
+
+    - name: iptables MASQUERADE for MetalLB
+      iptables:
+        table: nat
+        chain: POSTROUTING
+        destination: "{{ ip_ingress }}"
+        jump: MASQUERADE
+        comment: "MetalLB"
+
+    - name: Install helm packages
+      kubernetes.core.helm:
+        name: "{{ item.name }}"
+        chart_ref: "{{ item.chart }}"
+        release_namespace: "{{ item.namespace }}"
+        values_files: 
+          - "{{ item.value_file }}"
+        create_namespace: yes
+        wait: yes
+        wait_timeout: 300s
+        release_state: present
+      loop:
+        - name: ingress-nginx
+          chart: ingress-nginx/ingress-nginx
+          namespace: "{{ namespace_ingress }}"
+          value_file: "{{ temp_dir }}/ingress_nginx_values.yaml"
+        - name: argocd
+          chart: argo-cd/argo-cd
+          namespace: "{{ namespace_argocd }}"
+          value_file: "{{ temp_dir }}/argocd_values.yaml"
+        - name: gitea
+          chart: gitea/gitea
+          namespace: "{{ namespace_gitea }}"
+          value_file: "{{ temp_dir }}/gitea_values.yaml"
+
+    - name: Apply Ingresses
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ item }}"
+      loop:
+        - "{{ temp_dir }}/argocd_ingress.yaml"
+        - "{{ temp_dir }}/gitea_ingress.yaml"
+
+    - name: Create gitea apps repo via REST API
+      uri:
+        url: "http://{{ ip_ingress }}/{{ gitea_path }}/api/v1/user/repos"
+        method: POST
+        user: "{{ gitea_username }}"
+        password: "{{ gitea_password }}"
+        body: '{"default_branch": "main", "name": "{{ gitea_apps_repo }}", "private": false}'
+        body_format: json
+        status_code: 201
+        force_basic_auth: yes
+        validate_certs: no
+      register: _result
+      until: _result.status == 201
+      retries: 10
+      delay: 5
+
+    - name: Apply Argo CD apps config
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ item }}"
+      loop:
+        - "{{ temp_dir }}/argocd_repo.yaml"
+        - "{{ temp_dir }}/argocd_apps.yaml"

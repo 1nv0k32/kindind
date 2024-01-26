@@ -10,7 +10,6 @@ A solution to run KinD in DinD with following ready to use services:
 ## Requirements
 
 - Tools: `docker` (with privileged access)
-- Empty CIDR: `172.29.0.0/16`
 
 ## Run
 
@@ -22,17 +21,15 @@ chmod +x run.sh
 Access the applications with bellow URLs:
 
 - ArgoCD
-  - URL: [ArgoCD](https://172.29.255.200/argocd/)
+  - URL: [ArgoCD](http://localhost/argocd/)
   - User: `admin`
-  - Password: `argo`
+  - Password: `admin`
 - Gitea
-  - URL: [Gitea](https://172.29.255.200/gitea/)
+  - URL: [Gitea](http://localhost/gitea/)
   - User: `gitea`
   - Password: `gitea`
 
 ## TODOs
 
-- [ ] Use Ansible instead of the bash script
-- [ ] Get rid of hardcoded Addresses
-- [ ] Automate CIDR choice
+- [x] Use Ansible instead of the bash script
 - [x] Connect Argo to Gitea
